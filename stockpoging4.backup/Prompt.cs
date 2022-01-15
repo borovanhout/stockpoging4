@@ -30,12 +30,10 @@ namespace stockpoging4
                 TopMost = true,
                 MinimizeBox = false,
                 MaximizeBox = false,
-                BackColor = Color.Magenta,
-                TransparencyKey = Color.Magenta,
             };
-            Label textLabel = new Label() {  Top = 20, Text = text, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White };
-            TextBox textBox = new TextBox() {  Left = 40, Top = 25, Width = 100 };
-            Button confirmation = new Button() { Text = "Ok", Left = 40, Width = 100, Top = 50, DialogResult = DialogResult.OK, ImageAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White};
+            Label textLabel = new Label() { Left = 50, Top = 20, Text = text, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleCenter };
+            TextBox textBox = new TextBox() { Left = 30, Top = 30, Width = 100 };
+            Button confirmation = new Button() { Text = "Ok", Left = 30, Width = 100, Top = 50, DialogResult = DialogResult.OK, ImageAlign = ContentAlignment.BottomRight };
             confirmation.Click += (sender, e) => { prompt.Close(); };
             prompt.Controls.Add(textBox);
             prompt.Controls.Add(confirmation);

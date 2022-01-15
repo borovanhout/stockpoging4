@@ -22,5 +22,17 @@ namespace stockpoging4.Properties {
                 return defaultInstance;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string Tickers {
+            get {
+                return ((string)(this["Tickers"]));
+            }
+            set {
+                this["Tickers"] = value;
+            }
+        }
     }
 }
