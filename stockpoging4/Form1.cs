@@ -16,7 +16,6 @@ namespace stockpoging4
     public partial class Form1 : Form
     {
         YahooQuotes yahooQuotes = new YahooQuotesBuilder().HistoryStarting(Instant.FromUtc(DateTime.Now.Year - 1, DateTime.Now.Month, DateTime.Now.Day, 0, 0)).Build();
-
         Task _runningTask;
         CancellationTokenSource _cancellationToken;
         int tickerCounter = 1;
@@ -26,13 +25,18 @@ namespace stockpoging4
         int tableLayoutPanelCounter = 1;
         List<string> tickerList = new List<string>() { "USDEUR=X", "GBPEUR=X" };
         List<List<object>> positionList = new List<List<object>>();
-        List<string> currencyList = new List<string>() { "USDEUR=X", "GBPEUR=X" };
+
+        double currentTotalValue = 0;
+        double originalTotalValue = 0;
+        double changeAbsTotalValue = 0;
+        double changePercTotalValue = 0;
 
         public Form1()
         {
             System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
             InitializeComponent();
             FillMeta();
+            CreateTotalsTableLayoutPanel();
             this.BackColor = Color.Brown;
             this.TransparencyKey = BackColor;
         }
@@ -69,9 +73,8 @@ namespace stockpoging4
                                     {
                                         tableLayoutPanel1.SuspendLayout();
                                         tickerList.Add(ticker);
-                                        string[] lastTicker = new string[1] { ticker };
 
-                                        var priceInfo = await GetStockPrices(lastTicker);
+                                        var priceInfo = await GetStockPrices(tickerList.ToArray());
                                         FillTickerLabel(ticker);
 
                                         List<object> priceInfoLastTicker = priceInfo[0];
@@ -85,6 +88,7 @@ namespace stockpoging4
                                         List<object> changeInfo = GetChangeVars(priceInfoLastTicker);
                                         FillChangeLabels(ticker, priceInfoLastTicker[0].ToString(), changeInfo);
 
+                                        FillTotalLabels(positionInfo);
                                         if (tickerList.Count <= 1)
                                         {
                                             _cancellationToken = new CancellationTokenSource();
@@ -122,13 +126,21 @@ namespace stockpoging4
         /// 
         private void FillMeta()
         {
-            string[] meta = { "Ticker", "Current position", "Change 1d", "Change 7d", "Change 30d", "Change 90d", "Change 180d", "Change 1y" };
+            string[] meta = { "Ticker", "Current position", "Change 1d", "Change 7d", "Change 30d", "Change 90d", "Change 180d", "Change 1y", "Total" };
             int metaCounter = 0;
             foreach (string str in meta)
             {
-                Label label = new Label() { Name = str, Text = str, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Font = new Font(Label.DefaultFont, FontStyle.Bold), ForeColor = Color.White };
-                tableLayoutPanel1.Controls.Add(label, metaCounter, 0);
-                metaCounter++;
+                if (str == "Total")
+                {
+                    Label label = new Label() { Name = str, Text = str, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, ForeColor = Color.White };
+                    tableLayoutPanel3.Controls.Add(label, 0, 0);
+                }
+                else
+                {
+                    Label label = new Label() { Name = str, Text = str, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, Font = new Font(Label.DefaultFont, FontStyle.Bold), ForeColor = Color.White };
+                    tableLayoutPanel1.Controls.Add(label, metaCounter, 0);
+                    metaCounter++;
+                }
             }
         }
 
@@ -208,6 +220,14 @@ namespace stockpoging4
             changeColumnCounter = 2;
         }
 
+        private void FillTotalLabels(List<object> positionInfo)
+        {
+            Label currentValueLabel = (Label)tableLayoutPanel3.GetControlFromPosition(0, 0);
+            currentTotalValue += Convert.ToDouble(positionInfo[3]);
+            currentValueLabel.Text = currentTotalValue.ToString();
+
+
+        }
 
         /// <summary>
         /// Helper functions to do various things
@@ -251,6 +271,36 @@ namespace stockpoging4
             return changeTableLayoutPanel;
         }
 
+        private void CreateTotalsTableLayoutPanel()
+        {
+            TableLayoutPanel totalsTableLayoutPanel = new TableLayoutPanel();
+            tableLayoutPanel3.Controls.Add(totalsTableLayoutPanel, 1, 0);
+            totalsTableLayoutPanel.AutoSize = true;
+            totalsTableLayoutPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            totalsTableLayoutPanel.ColumnCount = 2;
+            totalsTableLayoutPanel.Dock = DockStyle.Fill;
+            totalsTableLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            totalsTableLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            totalsTableLayoutPanel.RowCount = 1;
+            totalsTableLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            CreateTotalsLabels(totalsTableLayoutPanel);
+        }
+
+        private void CreateTotalsLabels(TableLayoutPanel tlp)
+        {
+            Label currentValueLabel = new Label() { Name = "currentValue" };
+            tlp.Controls.Add(currentValueLabel, 0, 0);
+
+            Label originalValueLabel = new Label() { Name = "originalValue" };
+            tlp.Controls.Add(originalValueLabel, 0, 1);
+
+            Label changeAbsLabel = new Label() { Name = "changeTotalAbs" };
+            tlp.Controls.Add(changeAbsLabel, 1, 0);
+
+            Label changePercLabel = new Label() { Name = "changeTotalPerc" };
+            tlp.Controls.Add(changePercLabel, 1, 1);
+        }
+
         private List<object> GetPositionVars(string ticker, double volume, double buyPrice, double currentPrice)
         {
             double currentPosition = volume * currentPrice;
@@ -291,8 +341,18 @@ namespace stockpoging4
         //private TableLayoutPanel CreateChangeNewTableLayoutPanel(TableLayoutPanel changeTableLayoutPanel)
         public async Task<List<List<object>>> GetStockPrices(string[] tickerList)
         {
+            double? dollarToEur = 0;
+            double? poundToEur = 0;
+            double? currencyValue = 0;
+
             List<List<object>> priceInfo = new List<List<object>>();
             Dictionary<string, Security?> securities = await yahooQuotes.GetAsync(tickerList, HistoryFlags.PriceHistory);
+            dollarToEur = (double?)securities.ElementAt(0).Value.RegularMarketPrice;
+            poundToEur = (double?)securities.ElementAt(1).Value.RegularMarketPrice;
+
+            securities.Remove(securities.Keys.First());
+            securities.Remove(securities.Keys.First());
+            tickerList = tickerList.Skip(2).ToArray();
             for (int i = 0; i < tickerList.Count(); i++)
             {
                     double? openPrice1D = null;
@@ -308,14 +368,17 @@ namespace stockpoging4
                     {
                         case "USD":
                             currency = "$";
+                            currencyValue = dollarToEur;
                             break;
 
                         case "EUR":
                             currency = "€";
+                            currencyValue = 1;
                             break;
 
                         case "GBp":
                             currency = "£p";
+                            currencyValue = poundToEur / 100; 
                             break;
 
                     }
@@ -347,24 +410,10 @@ namespace stockpoging4
                     {
                         openPrice1Y = Convert.ToDouble(priceHistory[250].Open);
                     }
-                    List<object> securityInfo = new List<object>() { currency, currentPrice, openPrice1D, openPrice7D, openPrice30D, openPrice90D, openPrice180D, openPrice1Y, security.Symbol.Name };
+                    List<object> securityInfo = new List<object>() { currency, currentPrice, openPrice1D, openPrice7D, openPrice30D, openPrice90D, openPrice180D, openPrice1Y, security.Symbol.Name, currencyValue };
                     priceInfo.Add(securityInfo);
             }
             return priceInfo;
-        }
-
-        public async Task<List<List<double>>> GetCurrencyPrices()
-        {
-            List<List<double>> currencyInfo = new List<List<double>>();
-            Dictionary<string, Security?> securities = await yahooQuotes.GetAsync(currencyList);
-            for (int i = 0; i < currencyList.Count(); i++)
-            {
-                Security? security = securities[currencyList[i]];
-                double currentPrice = (double)security.RegularMarketPrice;
-                List<double> securityInfo = new List<double>() { currentPrice };
-                currencyInfo.Add(securityInfo);
-            }
-            return currencyInfo;
         }
 
         /// <summary>
@@ -373,8 +422,9 @@ namespace stockpoging4
         public async void KeepUpdatingEverything(List<string> tickerList)
         {
             int j = 0;
+            double totalPosition = 0;
+            double totalMovement = 0;
 
-            var currencyInfo =  await GetCurrencyPrices();
             var allPriceInfo = await GetStockPrices(tickerList.ToArray());
             foreach (List<object> priceInfo in allPriceInfo)
             {
@@ -464,8 +514,8 @@ namespace stockpoging4
                     tickerList.Add(tickers[i].InnerText);
                     FillTickerLabel(tickers[i].InnerText);
 
-                    var priceInfo = await GetStockPrices(new string[] { tickers[i].InnerText }) ;
-                    List<object> priceInfoLastTicker = priceInfo[0];
+                    var priceInfo = await GetStockPrices(tickerList.ToArray()) ;
+                    List<object> priceInfoLastTicker = priceInfo[i];
 
                     List<object> lastPositionInfo = new List<object>() { volumes[i].InnerText, buyPrices[i].InnerText, tickers[i].InnerText };
                     positionList.Add(lastPositionInfo);
@@ -518,10 +568,18 @@ namespace stockpoging4
             root.AppendChild(priceElement1);
             for (int i = 1; i < forCount; i++)
             {
+                string buyPrice;
                 TableLayoutPanel panel = (TableLayoutPanel)tableLayoutPanel1.GetControlFromPosition(1, i);
                 Label buyPriceLabel = (Label)panel.GetControlFromPosition(1, 1);
                 string[] textSplit = buyPriceLabel.Text.Split(" ");
-                string buyPrice = textSplit[0].Remove(0, 2);
+                if (textSplit[0].Count() > 5)
+                {
+                    buyPrice = textSplit[0].Remove(0, 3);
+                }
+                else
+                {
+                    buyPrice = textSplit[0].Remove(0, 2);
+                }
                 buyPrice = buyPrice.Remove(buyPrice.Length - 1, 1);
                 XmlElement priceElement2 = doc.CreateElement("", "BuyPrice", "");
                 priceElement2.InnerText = buyPrice;
